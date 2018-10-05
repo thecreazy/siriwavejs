@@ -31,12 +31,13 @@ var SiriWave = (function () {
 
       this.ctrl = opt.ctrl;
       this.definition = opt.definition;
+      this.ATT_FACTOR = 4;
     }
 
     _createClass(Curve, [{
-      key: "_globAttenuationEquation",
-      value: function _globAttenuationEquation(x) {
-        return Math.pow(4 / (4 + Math.pow(x, 4)), 4);
+      key: "_globalAttFn",
+      value: function _globalAttFn(x) {
+        return Math.pow(this.ATT_FACTOR / (this.ATT_FACTOR + Math.pow(x, this.ATT_FACTOR)), this.ATT_FACTOR);
       }
     }, {
       key: "_xpos",
@@ -46,8 +47,7 @@ var SiriWave = (function () {
     }, {
       key: "_ypos",
       value: function _ypos(i) {
-        var att = this.ctrl.heightMax * this.ctrl.amplitude / this.definition.attenuation;
-        return this.ctrl.height / 2 + this._globAttenuationEquation(i) * att * Math.sin(this.ctrl.opt.frequency * i - this.ctrl.phase);
+        return this.ctrl.heightMax + this._globalAttFn(i) * (this.ctrl.heightMax * this.ctrl.amplitude / this.definition.attenuation) * Math.sin(this.ctrl.opt.frequency * i - this.ctrl.phase);
       }
     }, {
       key: "draw",
@@ -56,13 +56,10 @@ var SiriWave = (function () {
         ctx.moveTo(0, 0);
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(' + this.ctrl.color + ',' + this.definition.opacity + ')';
-        ctx.lineWidth = this.definition.lineWidth;
+        ctx.lineWidth = this.definition.lineWidth; // Cycle the graph from -X to +X every PX_DEPTH and draw the line
 
         for (var i = -this.ctrl.MAX_X; i <= this.ctrl.MAX_X; i += this.ctrl.opt.pixelDepth) {
-          var y = this._ypos(i);
-
-          if (Math.abs(i) >= 1.90) y = this.ctrl.height / 2;
-          ctx.lineTo(this._xpos(i), y);
+          ctx.lineTo(this._xpos(i), this._ypos(i));
         }
 
         ctx.stroke();
@@ -107,7 +104,9 @@ var SiriWave = (function () {
 
       this.ctrl = opt.ctrl;
       this.definition = opt.definition;
-      this.tick = 0;
+      this.phase = 0;
+      this.AMPLITUDE_RANGE = [0.1, 1];
+      this.WIDTH_RANGE = [0.1, 0.3];
 
       this._respawn();
     }
@@ -115,15 +114,19 @@ var SiriWave = (function () {
     _createClass(iOS9Curve, [{
       key: "_respawn",
       value: function _respawn() {
-        this.amplitude = 0.3 + Math.random() * 0.7;
-        this.seed = Math.random();
-        this.openClass = 2 + Math.random() * 3 | 0;
+        // Generate a random seed
+        this.seed = Math.random(); // Generate random properties for this wave
+
+        this.amplitude = this.AMPLITUDE_RANGE[0] + Math.random() * (this.AMPLITUDE_RANGE[1] - this.AMPLITUDE_RANGE[0]);
+        this.width = this.ctrl.width * (this.WIDTH_RANGE[0] + Math.random() * (this.WIDTH_RANGE[1] - this.WIDTH_RANGE[0])); // Generate a random number to determine the wave class
+
+        this.openClass = 2 + (Math.random() * 3 | 0);
       }
     }, {
       key: "_ypos",
       value: function _ypos(i) {
-        var y = -1 * // Actual real Y in the SIN function
-        Math.abs(Math.sin(this.tick)) * // Amplitude of the original controller
+        var y = 1 * // Actual real Y in the SIN function
+        Math.abs(Math.sin(this.phase)) * // Amplitude of the original controller
         this.ctrl.amplitude * // Amplitude of current wave
         this.amplitude * // Maximum height for the complete wave
         this.ctrl.heightMax * // Class of the wave (small to big)
@@ -137,37 +140,37 @@ var SiriWave = (function () {
         return y;
       }
     }, {
-      key: "_draw",
-      value: function _draw(sign) {
-        var ctx = this.ctrl.ctx;
-        this.tick += this.ctrl.speed * (1 - 0.5 * Math.sin(this.seed * Math.PI));
-        ctx.beginPath();
-        var xBase = this.ctrl.width / 2 + (-(this.ctrl.width / 4) + this.seed * (this.ctrl.width / 2));
-        var yBase = this.ctrl.height / 2;
-        var x, y, xInit;
-
-        for (var i = -this.ctrl.MAX_X; i <= this.ctrl.MAX_X; i += this.ctrl.opt.pixelDepth) {
-          x = xBase + i * (this.ctrl.width / 4);
-          y = yBase + sign * this._ypos(i);
-          if (xInit == null) xInit = x;
-          ctx.lineTo(x, y);
-        }
-
-        var height = Math.abs(this._ypos(0));
-        var gradient = ctx.createRadialGradient(xBase, yBase, height * 1.15, xBase, yBase, height * 0.3);
-        gradient.addColorStop(0, 'rgba(' + this.definition.color + ', 0.4)');
-        gradient.addColorStop(1, 'rgba(' + this.definition.color + ', 0.2)');
-        ctx.fillStyle = gradient;
-        ctx.lineTo(xInit, yBase);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }, {
       key: "draw",
       value: function draw() {
-        this._draw(-1);
+        this.phase += this.ctrl.speed * (1 - 0.5 * Math.sin(this.seed * Math.PI)); // TODO:  we have to ensure that same colors are not near
 
-        this._draw(1);
+        var xBase = 2 * this.width + (-this.width + this.seed * (2 * this.width));
+        var yBase = this.ctrl.heightMax;
+        var x, y;
+        var height = Math.abs(this._ypos(0));
+        var xInit = xBase + -this.ctrl.MAX_X * this.width;
+        var ctx = this.ctrl.ctx; // Write two opposite waves
+
+        var _arr = [-1, 1];
+
+        for (var _i = 0; _i < _arr.length; _i++) {
+          var sign = _arr[_i];
+          ctx.beginPath(); // Cycle the graph from -X to +X every PX_DEPTH and draw the line
+
+          for (var i = -this.ctrl.MAX_X; i <= this.ctrl.MAX_X; i += this.ctrl.opt.pixelDepth) {
+            x = xBase + i * this.width;
+            y = yBase + sign * this._ypos(i);
+            ctx.lineTo(x, y);
+          }
+
+          var gradient = ctx.createRadialGradient(xBase, yBase, height * 1.15, xBase, yBase, height * 0.3);
+          gradient.addColorStop(0, 'rgba(' + this.definition.color + ', 0.8)');
+          gradient.addColorStop(1, 'rgba(' + this.definition.color + ', 0.2)');
+          ctx.fillStyle = gradient;
+          ctx.lineTo(xInit, yBase);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
     }], [{
       key: "getDefinition",
@@ -307,6 +310,11 @@ var SiriWave = (function () {
   raf_1.cancel = cancel;
   raf_1.polyfill = polyfill;
 
+  function lerp(v0, v1, t) {
+      return v0*(1-t)+v1*t
+  }
+  var lerp_1 = lerp;
+
   var SiriWave =
   /*#__PURE__*/
   function () {
@@ -320,13 +328,12 @@ var SiriWave = (function () {
      * @param {Number} [opt.amplitude=1] The amplitude of the complete wave.
      * @param {Number} [opt.frequency=6] The frequency for the complete wave (how many waves). - Not available in iOS9 Style
      * @param {String} [opt.color='#fff'] The color of the wave, in hexadecimal form (`#336699`, `#FF0`). - Not available in iOS9 Style
-     * @param {Number} [opt.speedInterpolationSpeed=0.005] The increment to add when interpolating the speed property.
-     * @param {Number} [opt.speedInterpolationSpeed=0.005] The increment to add when interpolating the amplitude property.
      * @param {Boolean} [opt.cover=false] The `canvas` covers the entire width or height of the container.
      * @param {Number} [opt.width=null] Width of the canvas. Calculated by default.
      * @param {Number} [opt.height=null] Height of the canvas. Calculated by default.
      * @param {Boolean} [opt.autostart=false] Decide wether start the animation on boot.
-     * @param {Number} [opt.pixelDepth=0.01] Number of step (in pixels) used when drawed on canvas.
+     * @param {Number} [opt.pixelDepth=0.02] Number of step (in pixels) used when drawed on canvas.
+     * @param {Number} [opt.lerpSpeed=0.01] Lerp speed to interpolate properties.
      */
     function SiriWave() {
       var opt = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
@@ -338,17 +345,18 @@ var SiriWave = (function () {
       this.opt = Object.assign({
         style: 'ios',
         ratio: window.devicePixelRatio || 1,
-        speed: 0.2,
+        speed: 0.1,
         amplitude: 1,
         frequency: 6,
         color: '#fff',
-        speedInterpolationSpeed: 0.005,
+        speedInterpolationSpeed: 0.05,
         amplitudeInterpolationSpeed: 0.005,
         cover: false,
         width: window.getComputedStyle(this.container).width.replace('px', ''),
         height: window.getComputedStyle(this.container).height.replace('px', ''),
         autostart: false,
-        pixelDepth: 0.01
+        pixelDepth: 0.02,
+        lerpSpeed: 0.01
       }, opt);
       /**
        * Max X coordinate to draw the graph
@@ -359,7 +367,7 @@ var SiriWave = (function () {
        * A really small value to consider a wave "dead" (used in iOS9)
        */
 
-      this.DEAD_THRESHOLD = 0.001;
+      this.DEAD_THRESHOLD = 0.05;
       /**
        * Phase of the wave (passed to Math.sin function)
        */
@@ -394,7 +402,7 @@ var SiriWave = (function () {
        * Maximum height for a single wave
        */
 
-      this.heightMax = Number(this.height / 2) - 4;
+      this.heightMax = Number(this.height / 2) - 6;
       /**
        * Color of the wave (used in Classic iOS)
        */
@@ -437,7 +445,7 @@ var SiriWave = (function () {
       this.curves = []; // Instantiate all curves based on the style
 
       if (this.opt.style === 'ios9') {
-        var numberOfCurvesPerDef = 3 * Math.random() | 0;
+        var numberOfCurvesPerDef = 2;
         var _iteratorNormalCompletion = true;
         var _didIteratorError = false;
         var _iteratorError = undefined;
@@ -529,28 +537,9 @@ var SiriWave = (function () {
        */
 
     }, {
-      key: "_interpolate",
-      value: function _interpolate(propertyStr) {
-        // This is how much we have to add in every iteration
-        var increment = this.opt[propertyStr + 'InterpolationSpeed'];
-
-        if (increment == null) {
-          throw new Error('Unable to retrieve increment for: ' + propertyStr);
-        } // We reached the end
-
-
-        if (Math.abs(this.interpolation[propertyStr] - this[propertyStr]) <= increment) {
-          this[propertyStr] = this.interpolation[propertyStr];
-          return;
-        } // Add or subtract the property for the increment
-
-
-        if (this.interpolation[propertyStr] > this[propertyStr]) {
-          this[propertyStr] += increment;
-        } else {
-          this[propertyStr] -= increment;
-        }
-
+      key: "_lerp",
+      value: function _lerp(propertyStr) {
+        this[propertyStr] = lerp_1(this[propertyStr], this.interpolation[propertyStr], this.opt.lerpSpeed);
         return this[propertyStr];
       }
       /**
@@ -611,13 +600,13 @@ var SiriWave = (function () {
         this._clear(); // Interpolate values
 
 
-        this._interpolate('amplitude');
+        this._lerp('amplitude');
 
-        this._interpolate('speed');
+        this._lerp('speed');
 
         this._draw();
 
-        this.phase = (this.phase + Math.PI * this.opt.speed) % (2 * Math.PI);
+        this.phase = (this.phase + Math.PI * this.speed) % (2 * Math.PI);
         raf_1(this._startDrawCycle.bind(this), 20);
       }
       /* API */
@@ -647,6 +636,18 @@ var SiriWave = (function () {
         this.run = false;
       }
       /**
+       * Set a new value for a property (interpolated)
+       * @param {String} propertyStr
+       * @param {Number} v
+       * @memberof SiriWave
+       */
+
+    }, {
+      key: "set",
+      value: function set(propertyStr, v) {
+        this.interpolation[propertyStr] = Number(v);
+      }
+      /**
        * Set a new value for the speed property (interpolated)
        * @param {Number} v
        * @memberof SiriWave
@@ -655,7 +656,7 @@ var SiriWave = (function () {
     }, {
       key: "setSpeed",
       value: function setSpeed(v) {
-        this.interpolation.speed = v;
+        this.set('speed', v);
       }
       /**
        * Set a new value for the amplitude property (interpolated)
@@ -666,7 +667,7 @@ var SiriWave = (function () {
     }, {
       key: "setAmplitude",
       value: function setAmplitude(v) {
-        this.interpolation.amplitude = Math.max(Math.min(v, 1), 0);
+        this.set('amplitude', v);
       }
     }]);
 

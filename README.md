@@ -1,19 +1,19 @@
-# SiriWaveJS
+# SiriWave
 
 Have you ever thought on how to get the Siri wave effect on your website or mobile app?
 
-SiriWaveJS is a library that _easily_ allows you to get this effect.
+SiriWave is a library that _easily_ allows you to get this effect.
 
-### [Live example](http://kopiro.github.io/siriwavejs/)
+### [Live example](http://kopiro.github.io/siriwave)
 
 ## Usage
 
-Download the dist file under **./dist/siriwave.js**,
-or use the CDN one **https://unpkg.com/siriwavejs/dist/siriwave.umd.js**
+Download the dist file under **./dist/siriwave.min.js**,
+or use the CDN one **https://unpkg.com/siriwave/dist/siriwave.min.js**
 and include in your web page as a script.
 
 ```html
-<script src="https://unpkg.com/siriwavejs/dist/siriwave.umd.js"></script>
+<script src="https://unpkg.com/siriwave/dist/siriwave.js"></script>
 ```
 
 Create a div container and instantiate a SiriWave object
@@ -70,25 +70,17 @@ The color of the wave, in hexadecimal form (`#336699`, `#FF0`)
 
 The `canvas` covers the entire width or height of the container.
 
-### `[speedInterpolationSpeed]` (Number, defauilt: `0.005`)
-
-The speed to interpolate the `speed` property.
-
-### `[amplitudeInterpolationSpeed]` (Number, default: `0.005`)
-
-The speed to interpolate the `amplitude` property.
-
 ### `[autostart]` (Boolean, default: `false`)
 
 Decide wether start the animation on boot.
 
-### `[autostart]` (Boolean, default: `false`)
-
-Decide wether start the animation on boot.
-
-### `[pixelDepth]` (Number, default: `0.01`)
+### `[pixelDepth]` (Number, default: `0.02`)
 
 Number of step (in pixels) used when drawed on canvas.
+
+### `[lerpSpeed]` (Number, default: `0.01`)
+
+Lerp speed to interpolate properties.
 
 ## API
 
